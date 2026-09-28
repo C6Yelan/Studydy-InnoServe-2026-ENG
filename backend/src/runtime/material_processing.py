@@ -35,7 +35,7 @@ class MaterialProcessingError(RuntimeError):
 
 
 class MaterialProcessingCancelled(RuntimeError):
-    """Cancellation reached a safe checkpoint; exit the worker normally."""
+    """Work was cancelled or local waiting stopped; transactions and recovery own durable state."""
 
 
 @dataclass(frozen=True)
@@ -317,34 +317,46 @@ def execute_claimed_material_processing_run(
     local_config: dict[str, Any],
     *,
     dsn: str | None = None,
+    shutdown: Event | None = None,
 ) -> MaterialProcessingRun:
     if not isinstance(claim, ClaimedMaterialProcessingRun):
         raise MaterialProcessingError("MATERIAL_RUN_CLAIM_INVALID")
     stop = Event()
+    interrupted = []
+    def check_wait():
+        if shutdown is not None and shutdown.is_set():
+            # Preserve lease/checkpoints for recovery; shutdown is not a user cancellation.
+            raise MaterialProcessingCancelled()
+        if interrupted:
+            raise interrupted[0]
     def keep_lease_alive():
         # Renew while inference runs; the lease checks worker liveness, not inference duration.
         while not stop.wait(_LEASE_HEARTBEAT_SECONDS):
             try:
                 _check_cancellation(claim.run.run_id, worker_token=claim.worker_token, dsn=dsn)
-            except MaterialProcessingCancelled:
+            except MaterialProcessingCancelled as error:
+                interrupted.append(error)
                 return
             except MaterialProcessingError as error:
                 if str(error) != "MATERIAL_RUN_STORAGE_FAILED":
+                    interrupted.append(error)
                     return
                 # Transient lock contention does not invalidate the worker; the next heartbeat rechecks its token.
     heartbeat = Thread(target=keep_lease_alive, name="studydy-material-lease", daemon=True)
     heartbeat.start()
     try:
-        return _execute_claimed_material_processing_run(claim, local_config, dsn=dsn)
+        return _execute_claimed_material_processing_run(claim, local_config, dsn=dsn, check_wait=check_wait)
     finally:
         stop.set()
         heartbeat.join()
 
 
-def _execute_claimed_material_processing_run(claim, local_config, *, dsn):
+def _execute_claimed_material_processing_run(claim, local_config, *, dsn, check_wait):
     run = claim.run
     archive = None
-    check_cancel = lambda: _check_cancellation(run.run_id, worker_token=claim.worker_token, dsn=dsn)
+    def check_cancel():
+        check_wait()
+        _check_cancellation(run.run_id, worker_token=claim.worker_token, dsn=dsn)
     def progress(stage, completed, total):
         check_cancel()
         _record_progress(run.run_id, stage, completed, total, dsn=dsn)
@@ -389,7 +401,8 @@ def _execute_claimed_material_processing_run(claim, local_config, *, dsn):
                     sources.append({'media_type':'application/pdf','source_path':str(path),'expected_source_sha256':item['normalized_sha256']})
                 structure=analyze_material(sources,binding,deepcopy(local_config),run_id=str(run.run_id),
                     base_structure=base,
-                    progress_callback=progress,cancellation_check=check_cancel,analysis_archive=archive)
+                    progress_callback=progress,cancellation_check=check_cancel,analysis_archive=archive,
+                    wait_cancellation_check=check_wait)
             else:
                 raise MaterialProcessingError("SOURCE_BINDING_INVALID")
         if structure["status"]["processing"] == "failed":
@@ -397,7 +410,8 @@ def _execute_claimed_material_processing_run(claim, local_config, *, dsn):
         if not review_only:
             structure=bind_structure_input(run.learner_id,run.run_id,structure,dsn=dsn)
         inherited_calls = structure['metrics']['semantic_calls'] if review_only else 0
-        structure=review_structure(structure, local_config['runtime_lock'], archive, check_cancel, progress)
+        structure=review_structure(structure, local_config['runtime_lock'], archive, check_cancel, progress,
+                                   wait_cancellation_check=check_wait)
         if review_only:
             structure['metrics']['semantic_calls'] -= inherited_calls
         progress("publishing", structure["page_count"], structure["page_count"])

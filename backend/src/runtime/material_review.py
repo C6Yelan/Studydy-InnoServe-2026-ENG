@@ -51,7 +51,7 @@ def review_inputs(document):
     return view, units
 
 
-def _checked_review(unit, index, lock, archive, client, check_cancel):
+def _checked_review(unit, index, lock, archive, client, check_cancel, wait_cancellation_check=None):
     """Repair coverage or source ownership once; never apply unverified proposals."""
     key = canonical_sha256({'source': unit.source_digest, 'request': unit.payload,
                             'policy': lock['material_review']})
@@ -85,7 +85,8 @@ def _checked_review(unit, index, lock, archive, client, check_cancel):
         archive.prepare_review_call(index, key, request, attempt=attempt)
         calls += 1
         value = request_semantics(client, runtime_lock=lock, task='material_review',
-                                  request=request, response_schema=schema)
+                                  request=request, response_schema=schema,
+                                  cancellation_check=wait_cancellation_check or check_cancel)
         name = f'call-{index:06d}' + (f'-repair-{attempt:02d}' if attempt else '')
         archive.save_review(f'{name}/response', value)
         return value
@@ -125,7 +126,7 @@ def _checked_review(unit, index, lock, archive, client, check_cancel):
     return response, calls
 
 
-def review_structure(document, lock, archive, check_cancel, progress):
+def review_structure(document, lock, archive, check_cancel, progress, *, wait_cancellation_check=None):
     """Reuse valid batches and bound coverage repair without repeating page analysis."""
     if 'material_review' not in lock:
         return document
@@ -136,7 +137,7 @@ def review_structure(document, lock, archive, check_cancel, progress):
     with semantic_client() as client:
         for index, unit in enumerate(units, 1):
             check_cancel()
-            response, new_calls = _checked_review(unit, index, lock, archive, client, check_cancel)
+            response, new_calls = _checked_review(unit, index, lock, archive, client, check_cancel, wait_cancellation_check)
             calls += new_calls
             reviews.append((unit, response))
             progress('semantics', document['page_count'], document['page_count'])
