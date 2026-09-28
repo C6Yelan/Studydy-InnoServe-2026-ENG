@@ -7,7 +7,7 @@ import type {
   MaterialLibraryItem,
   StudySessionView,
 } from "../../api/contracts";
-import { writeRoute, type AppRoute } from "../../app/routes";
+import { routePath, writeRoute, type AppRoute } from "../../app/routes";
 import { StateView } from "../../ui/StateView";
 import { KnowledgeMapWorkspace } from "./KnowledgeMapWorkspace";
 import "./styles.css";
@@ -38,6 +38,19 @@ export default function KnowledgeMap({
   const [startMessage, setStartMessage] = useState<string | null>(null);
   const [isStartingStudy, setIsStartingStudy] = useState(false);
   const startIntent = useRef<{ conceptId: string; key: string } | null>(null);
+  const activePage = useRef(false);
+  const pageVersion = useRef(0);
+
+  useEffect(() => {
+    activePage.current = true;
+    pageVersion.current += 1;
+    startIntent.current = null;
+    setIsStartingStudy(false);
+    setStartMessage(null);
+    return () => {
+      activePage.current = false;
+    };
+  }, [apiClient, route.materialId, route.runId, route.structureRevision]);
 
   const loadedRouteKey = useRef("");
   useEffect(() => {
@@ -186,6 +199,12 @@ export default function KnowledgeMap({
 
   const startStudy = async (conceptId: string) => {
     if (isStartingStudy || isLoadingProgress) return;
+    const version = pageVersion.current;
+    // The route may change before React unmounts this page; require both to remain current.
+    const isCurrentPage = () =>
+      activePage.current &&
+      pageVersion.current === version &&
+      window.location.pathname === routePath(route);
     if (
       savedSession &&
       (savedSession.status === "completed" || progress?.current_concept_id === conceptId)
@@ -210,12 +229,15 @@ export default function KnowledgeMap({
             },
             startIntent.current.key,
           );
+      if (!isCurrentPage()) return;
       // A concurrent create may return an existing session; align active sessions to the chosen concept.
       if (session.status !== "completed" && session.current_concept_id !== conceptId) {
         session = await apiClient.focusStudySession(session.study_session_id, conceptId);
+        if (!isCurrentPage()) return;
       }
       openStudySession(session.study_session_id);
     } catch (error) {
+      if (!isCurrentPage()) return;
       setStartMessage(errorMessage(error));
       setIsStartingStudy(false);
     }
