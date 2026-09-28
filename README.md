@@ -27,4 +27,4 @@ Supported inputs: PDF, DOC/DOCX, PPT/PPTX, UTF-8 TXT, and Markdown. Additional s
 
 Original files and persistent data stay on the deployment host. AI operations send necessary content to the configured model service. Generated content must be checked against its sources; software tests do not establish model quality.
 
-No project LICENSE has been provided. See [Third-party content](THIRD_PARTY_CONTENT.md) for asset provenance and licensing status.
+Except where otherwise noted, Studydy source code is licensed under the [MIT License](LICENSE). Third-party components, models, and interface assets may be subject to separate terms; see [Third-party content](THIRD_PARTY_CONTENT.md).

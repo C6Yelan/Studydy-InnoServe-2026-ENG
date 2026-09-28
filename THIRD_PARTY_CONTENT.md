@@ -16,4 +16,4 @@ The [Bubblewrap seccomp profile](ops/docker/bubblewrap-seccomp.json) derives fro
 
 Versions are recorded in the [Python lock](backend/uv.lock), [npm lock](frontend/package-lock.json), and [runtime lock](local_ai/runtime-lock.json). Each dependency and model retains its publisher's terms.
 
-Studydy has no project LICENSE at present. Third-party licenses do not assign the same license to the whole project or its interface assets.
+Except where otherwise noted, original Studydy source code is licensed under the [MIT License](LICENSE). Third-party components, models, and interface assets retain their applicable terms and are not relicensed merely because the project uses the MIT License.
