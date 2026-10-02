@@ -105,7 +105,7 @@ for (const width of [1536, 390]) {
     });
     await page.goto("/materials");
     const card = page.getByRole("article", { name: item.display_name, exact: true });
-    await expect(card).toContainText("3 files");
+    await expect(card).toContainText("Files: 3");
     await expect(card).not.toContainText(
       /Source file|Chapter_1.pdf|Converted PDF|Download original|Latest processing|File conversion|Saved questions and answers|partial|needs_review/,
     );
@@ -158,7 +158,7 @@ for (const width of [1536, 390]) {
       `/v1/artifacts/${officePreviewId}`,
     );
     await expect(rows.nth(1).getByRole("status")).toHaveCount(0);
-    await expect(rows.nth(1).locator(".source-metadata")).toContainText("20 pages");
+    await expect(rows.nth(1).locator(".source-metadata")).toContainText("Pages: 20");
     await expect(rows.getByRole("link", { name: "Preview PDF", exact: true })).toHaveCount(2);
     await expect(rows.nth(2).getByRole("status")).toHaveText("Conversion failed");
     const completedReads = reads;

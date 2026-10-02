@@ -236,7 +236,7 @@ for (const width of [1536, 390]) {
     );
     await expect(page.locator(".file-drop strong")).toHaveText("Drop your files here, or click to browse");
     await expect(page.locator(".file-drop > span:last-child")).toHaveText(
-      "PDF / TXT · Multiple files · Up to 100.0 MiB each",
+      "PDF, TXT · Multiple files · Up to 100.0 MiB each",
     );
     const conversion = page.getByText("Non-PDF files are converted to PDF. Check the conversion on the next screen.", {
       exact: true,
