@@ -236,7 +236,7 @@ for (const width of [1536, 390]) {
     );
     await expect(page.locator(".file-drop strong")).toHaveText("Drop your files here, or click to browse");
     await expect(page.locator(".file-drop > span:last-child")).toHaveText(
-      "PDF / TXT · Multiple files · Up to 100 MiB each",
+      "PDF / TXT · Multiple files · Up to 100.0 MiB each",
     );
     const conversion = page.getByText("Non-PDF files are converted to PDF. Check the conversion on the next screen.", {
       exact: true,
@@ -333,18 +333,13 @@ test("failed initial source requires explicit removal before analysis", async ({
   expect(state.starts[0].body.normalization_ids).toEqual([uuid(11)]);
 });
 
-test("capability read failure keeps PDF selection and its actionable notice", async ({ page }) => {
+test("capability failure blocks upload until the configured limit is known", async ({ page }) => {
   await setup(page);
-  await page.route("**/v1/source-capabilities", (route) =>
-    route.fulfill({ status: 503, json: failure }),
-  );
+  await page.route("**/v1/source-capabilities", (route) => route.fulfill({ status: 503, json: failure }));
   await page.goto("/upload");
-  await expect(page.getByRole("status")).toHaveText("Other formats are temporarily unavailable. You can still upload PDFs.");
-  await expect(page.locator(".file-drop > span:last-child")).toHaveText(
-    "PDF · Multiple files · Up to 100 MiB each",
-  );
-  await page.getByLabel("Choose material files", { exact: true }).setInputFiles(pdf);
-  await expect(page.getByRole("button", { name: "Upload and review sources", exact: true })).toBeEnabled();
+  await expect(page.getByRole("status")).toHaveText("Upload limits could not be loaded. Refresh the page and try again.");
+  await expect(page.getByLabel("Choose material files", { exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Upload and review sources", exact: true })).toBeDisabled();
 });
 
 test("selection waits for capabilities instead of rejecting a supported non-PDF format", async ({

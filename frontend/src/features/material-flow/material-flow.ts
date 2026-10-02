@@ -87,7 +87,7 @@ export function validateSourceFile(
   if (file.type && file.type !== "application/octet-stream" && file.type !== format.media_type)
     return "The file extension does not match its type.";
   if (file.size === 0) return "The file must not be empty.";
-  if (file.size > format.max_bytes) return "Each file must be no larger than 100 MiB.";
+  if (file.size > format.max_bytes) return `Each file must be no larger than ${format.max_bytes / (1024 * 1024)} MiB.`;
   return null;
 }
 

@@ -13,9 +13,7 @@ type QueuedFile = {
 };
 
 export function UploadView({ apiClient }: { apiClient: StudydyApiClient }) {
-  const [formats, setFormats] = useState<FormatCapability[]>([
-    { extension: ".pdf", media_type: "application/pdf", max_bytes: 104857600 },
-  ]);
+  const [formats, setFormats] = useState<FormatCapability[]>([]);
   const [formatsReady, setFormatsReady] = useState(false);
   const [capabilityError, setCapabilityError] = useState<string | null>(null);
   const [queue, setQueue] = useState<QueuedFile[]>([]);
@@ -42,8 +40,7 @@ export function UploadView({ apiClient }: { apiClient: StudydyApiClient }) {
       },
       () => {
         if (!cancelled) {
-          setCapabilityError("Other formats are temporarily unavailable. You can still upload PDFs.");
-          setFormatsReady(true);
+          setCapabilityError("Upload limits could not be loaded. Refresh the page and try again.");
         }
       },
     );
@@ -206,7 +203,7 @@ export function UploadView({ apiClient }: { apiClient: StudydyApiClient }) {
             </strong>
             <span>
               {formats.map((format) => format.extension.slice(1).toUpperCase()).join(", ")} ·
-              Multiple files · Up to 100 MiB each
+              Multiple files · {formatsReady ? `Up to ${formatFileSize(Math.min(...formats.map((format) => format.max_bytes)))} each` : "Loading upload limits"}
             </span>
           </label>
           {selectionError && (

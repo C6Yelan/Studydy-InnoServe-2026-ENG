@@ -140,7 +140,7 @@ for (const width of [1536, 390]) {
     await expect(rows.nth(2).getByRole("link", { name: "Preview PDF", exact: true })).toHaveCount(0);
     await expect(page.getByLabel("Choose files to add", { exact: true })).toBeEnabled();
     await expect(
-      page.getByText("Other formats are temporarily unavailable. You can still upload PDFs.", { exact: true }),
+      page.getByText("Upload limits could not be loaded. Refresh the page and try again.", { exact: true }),
     ).toHaveCount(0);
     // Verify continued polling before allowing the next response to become ready.
     await page.clock.runFor(5_000);

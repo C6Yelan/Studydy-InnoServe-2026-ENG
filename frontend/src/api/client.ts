@@ -41,7 +41,7 @@ const apiErrorMessages: Record<KnownApiReasonCode, string> = {
   IDEMPOTENCY_CONFLICT: genericApiMessage,
   ASSESSMENT_SET_CONFLICT: "This practice set has changed. Refresh it to continue.",
   ASSESSMENT_SET_ACTIVE: "A practice set is already in progress. Resume it from your history.",
-  MATERIAL_TOO_LARGE: "Each file must be no larger than 100 MiB.",
+  MATERIAL_TOO_LARGE: "This file exceeds the current upload limit. Use the limit shown in the file picker.",
   MATERIAL_NOT_DISCARDABLE: "This material is being deleted. This action is unavailable.",
   SOURCE_NOT_READY: "Conversion is not complete. Wait before starting analysis.",
   NORMALIZER_UNAVAILABLE: "The converter is unavailable. You can still upload PDFs.",
@@ -231,7 +231,18 @@ export class StudydyApiClient {
         }
       }
       checkActive();
-      if (response.ok) return { status: response.status, value };
+      if (response.ok && !response.redirected) return { status: response.status, value };
+      // Edge responses may not use product JSON. Never render their arbitrary bodies.
+      if (response.redirected || (!validate.apiError(value) && [401, 403].includes(response.status)))
+        throw new ApiClientError("api", "Site access has expired or was denied. Reopen the site and check your permissions.", {
+          status: response.status, reasonCode: "EDGE_ACCESS_REQUIRED",
+        });
+      if ([413, 429].includes(response.status) && !validate.apiError(value))
+        throw new ApiClientError("api", response.status === 413 ? apiErrorMessages.MATERIAL_TOO_LARGE : "Too many requests. Please try again later.", {
+          status: response.status,
+          reasonCode: response.status === 413 ? "MATERIAL_TOO_LARGE" : "RATE_LIMITED",
+          retryable: response.status === 429,
+        });
       if (!validate.apiError(value)) {
         if (response.status >= 500)
           throw new ApiClientError("network", "Studydy is temporarily unavailable. Please try again later.", {
