@@ -11,8 +11,8 @@ Never use the main or Chinese edition's database, artifacts, connector, or token
 - Frontend retains application membership; backend/model networks remain unchanged.
   The database network remains internal, with no host publishing.
 - The token file is /home/jerry/.config/studydy/cloudflared-innoserve-en-token,
-  outside all repositories/build contexts, mode 0600 with the configured runtime
-  UID/GID; its parent is 0700. Only the file path belongs in .env, never its contents.
+  outside all repositories/build contexts, mode 0600 with STUDYDY_UID/STUDYDY_GID
+  (default 1000:1000), not STUDYDY_BACKEND_UID; its parent is 0700. Only the file path belongs in .env, never its contents.
 - STUDYDY_UPLOAD_MAX_BYTES=94371840 is shared by API and Nginx; UI limits come from
   capabilities. Existing artifact hard limits stay unchanged. Capability failures
   block new file selection rather than falling back to a hardcoded limit.
@@ -30,6 +30,12 @@ docker compose -f compose.yaml -f compose.tunnel.yaml --profile tunnel up -d --n
 
 Keep both Compose files for subsequent frontend/backend maintenance. Base-only
 commands would omit the deployment's HTTPS settings and edge membership.
+
+## Dedicated backend identity
+
+The backend uses STUDYDY_BACKEND_UID (default 20003) with STUDYDY_GID (default 1000). The artifact root and runtime tmpfs use this identity. Keep STUDYDY_UID at the host manager's 1000: init remains root, bridge/cloudflared retain 1000:1000, PostgreSQL retains 999:999, and Nginx retains 101:101. Bridge and connector do not run conversion or inference, so moving their credential ownership is unnecessary.
+
+RLIMIT_NPROC counts tasks by real UID across containers. A dedicated backend UID avoids sharing Jerry's task count; NPROC 1024, the container pids limit 512, read_only, capabilities, no-new-privileges, seccomp, and bwrap arguments remain unchanged. Init preserves existing data-root and PostgreSQL metadata; it changes only the artifact root, not its existing descendants. Existing artifact trees require a separately reviewed, stopped-writer ownership migration and rollback plan. Do not migrate the whole data directory or loosen private artifact modes for host access. Concrete host paths, counts, cutover commands, and rollback commands belong in the deployment status record, not a generic command applied to every installation.
 
 ## PostgreSQL 18.6 security update
 

@@ -28,7 +28,8 @@ Set POSTGRES_PASSWORD and the model endpoint. Never commit .env, credentials, or
 | STUDYDY_PUBLIC_ORIGIN | Complete browser origin; default http://127.0.0.1:4177 |
 | STUDYDY_SECURE_COOKIE | false for local HTTP, true for HTTPS |
 | STUDYDY_DATA_DIR | Persistent root; default ./.studydy-product/compose |
-| STUDYDY_UID / STUDYDY_GID | Data owner; default 1000 |
+| STUDYDY_UID / STUDYDY_GID | Host data manager and bridge/connector identity; default 1000:1000 |
+| STUDYDY_BACKEND_UID | Dedicated backend real UID; default 20003, with STUDYDY_GID |
 | POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD | This deployment's database and credentials |
 | STUDYDY_SEMANTIC_BASE_URL | Model origin without /v1, credentials, query, or fragment |
 | VLLM_API_KEY | Optional model Bearer token |
@@ -38,6 +39,8 @@ Keep the English deployment's database, ports, Compose project, and data separat
 
 ## Build and run
 
+Before the first Compose run, create the configured STUDYDY_DATA_DIR as the host manager with mode 0700. Do not let Docker implicitly create a root-owned bind source. If the directory already exists, preserve its owner and permissions; init intentionally does not reset them.
+
 ```bash
 docker compose build
 docker compose up -d --wait
@@ -46,7 +49,7 @@ docker compose ps
 
 Open http://127.0.0.1:4177. Nginx proxies /v1 to the backend; the [OpenAPI document](http://127.0.0.1:4177/v1/openapi.json) describes its contracts. The [runtime lock](../local_ai/runtime-lock.json) defines model identity and request settings.
 
-Initialization creates directories and permissions. The backend verifies migration checksums, applies pending migrations, and starts the API and worker. It does not reset existing accounts or data. Login, saved-content reads, upload, and conversion do not need the semantic service.
+Initialization creates missing data roots for the host manager and PostgreSQL directories for UID/GID 999. Existing root and PostgreSQL ownership/modes are left untouched. Only the artifact root is assigned to STUDYDY_BACKEND_UID with mode 0700; init does not recursively migrate existing artifact descendants. Existing installations therefore need an explicit artifact ownership migration before switching the backend identity. The backend verifies migration checksums, applies pending migrations, and starts the API and worker. It does not reset existing accounts or data. Login, saved-content reads, upload, and conversion do not need the semantic service.
 
 ```bash
 docker compose logs --tail 100 backend
@@ -67,7 +70,7 @@ STUDYDY_SSH_PORT=22
 STUDYDY_SSH_MODEL_PORT=18000
 ```
 
-Place model_key and verified known_hosts under STUDYDY_DATA_DIR/ssh with mode 0600 and the configured owner. Alternatively, provide absolute paths through STUDYDY_SSH_KEY_FILE and STUDYDY_SSH_KNOWN_HOSTS_FILE. Only those files are mounted read-only; unknown host keys are not accepted automatically.
+The bridge remains on STUDYDY_UID/STUDYDY_GID (default 1000:1000), independently of the backend. It forwards requests but does not run conversion or inference. Place model_key and verified known_hosts under STUDYDY_DATA_DIR/ssh with mode 0600 and that bridge owner. Alternatively, provide absolute paths through STUDYDY_SSH_KEY_FILE and STUDYDY_SSH_KNOWN_HOSTS_FILE. Only those files are mounted read-only; unknown host keys are not accepted automatically.
 
 The remote host needs an interactive POSIX shell and Python 3. The bridge forwards fixed model routes, reads VLLM_API_KEY remotely, and does not replay requests with uncertain outcomes. Its local health check does not call the model.
 
@@ -75,7 +78,7 @@ Stop services with the existing configuration before changing connection mode. E
 
 ## Data, backup, and restore
 
-STUDYDY_DATA_DIR contains artifacts and postgres. Store .env and SSH credentials securely and separately from public reports.
+STUDYDY_DATA_DIR contains artifacts and postgres. Store .env and SSH credentials securely and separately from public reports. Artifact directories remain private (0700), and published artifacts remain read-only (0400). Keeping GID 1000 does not make them group-readable. Host tools must use the authenticated API or a controlled command running as the backend UID; do not change these modes or overwrite published artifacts. Keep PostgreSQL at 999:999, and do not recursively change ownership of the entire data root or the shared host .venv.
 
 1. Wait for active work to finish and stop product writes. Use pg_dump and save the matching artifact store, private configuration, permissions, and code/image version. Copying live PGDATA is not a database backup.
 2. Restore to a clearly named empty product recovery database with matching PostgreSQL and code versions. Use pg_restore --no-owner --no-acl --exit-on-error --single-transaction; restore artifacts to an independent private directory.

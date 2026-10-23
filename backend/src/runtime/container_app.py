@@ -12,21 +12,30 @@ from .semantic_service import _origin, SERVICE_URL_ENV
 from .storage.migrations import run_migrations
 
 
-def initialize_data(root: Path, uid: int, gid: int) -> None:
-    if uid <= 0 or gid <= 0 or root.is_symlink():
+def initialize_data(
+    root: Path, uid: int, gid: int, *, backend_uid: int | None = None
+) -> None:
+    backend_uid = uid if backend_uid is None else backend_uid
+    if uid <= 0 or gid <= 0 or backend_uid <= 0 or root.is_symlink():
         raise ValueError("CONTAINER_DATA_INVALID")
+    root_created = not root.exists()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    root.chmod(0o700)
-    os.chown(root, uid, gid)
+    if root_created:
+        root.chmod(0o700)
+        os.chown(root, uid, gid)
     for relative, owner, group in (
-        ("artifacts", uid, gid), ("postgres", 999, 999),
+        ("artifacts", backend_uid, gid), ("postgres", 999, 999),
     ):
         path = root / relative
         if path.is_symlink():
             raise ValueError("CONTAINER_DATA_INVALID")
+        created = not path.exists()
         path.mkdir(mode=0o700, parents=True, exist_ok=True)
-        path.chmod(0o700)
-        os.chown(path, owner, group)
+        # Existing data roots and PostgreSQL permissions belong to their manager.
+        # Artifact descendants are migrated explicitly before deployment.
+        if relative == "artifacts" or created:
+            path.chmod(0o700)
+            os.chown(path, owner, group)
 
 
 def configure_database(environment) -> None:
@@ -55,7 +64,12 @@ def main() -> None:
     command = parser.parse_args().command
     try:
         if command == "init":
-            initialize_data(Path("/data"), int(os.environ["STUDYDY_UID"]), int(os.environ["STUDYDY_GID"]))
+            initialize_data(
+                Path("/data"),
+                int(os.environ["STUDYDY_UID"]),
+                int(os.environ["STUDYDY_GID"]),
+                backend_uid=int(os.environ["STUDYDY_BACKEND_UID"]),
+            )
             return
         if command == "serve":
             _origin(os.environ[SERVICE_URL_ENV])
