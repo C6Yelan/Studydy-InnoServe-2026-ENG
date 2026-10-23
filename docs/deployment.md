@@ -31,6 +31,12 @@ docker compose -f compose.yaml -f compose.tunnel.yaml --profile tunnel up -d --n
 Keep both Compose files for subsequent frontend/backend maintenance. Base-only
 commands would omit the deployment's HTTPS settings and edge membership.
 
+## PostgreSQL 18.6 security update
+
+[The official 18.6 release notes](https://www.postgresql.org/docs/release/18.6/) explain that 18.5 was not released and that an 18.x minor update does not require dump/restore. The pinned server image and test fixture are both 18.6-bookworm; psycopg/binary 3.3.5 provides the official libpq 18.6 wheel.
+
+This edition's `backend/migrations/0001` through `0005` define ordinary B-tree/unique indexes, with no GIN, btree_gist, ltree, or extension declarations. No repository-defined index matches the release's specific GIN statistics/ANALYZE or btree_gist/ltree REINDEX conditions. Operators must separately check any objects or extensions created outside migrations; this source review does not inspect the product database or authorize maintenance SQL. Preserve existing migration files and checksums.
+
 Deployment checks: ops/tests/compose_boundary.py (explicit STUDYDY_TEST_ENV_FILE),
 ops/tests/nginx_boundary.py (explicit frontend/backend test images, loopback 4183),
 and backend/tests/runtime/infrastructure/test_https_deployment.py. Database tests

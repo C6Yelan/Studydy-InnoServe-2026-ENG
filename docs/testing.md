@@ -22,6 +22,10 @@ docker compose -p studydy-eng-unit-tests -f compose.test.yaml run --build --rm u
 
 The container has no network or product-data mounts and needs no GPU or model. Frontend image builds run Node tests, TypeScript, and the production build.
 
+LibreOffice 26.2.5.2 and Bubblewrap retain their qualified `20261005T060000Z` snapshot. Existing system security packages use exact versions from `20261023T060000Z`; both snapshots and pins are in `ops/docker/backend.Dockerfile`. Verify the runtime package versions after rebuilding rather than replacing LibreOffice or relaxing the sandbox. The English edition has no OCR stage or lxml dependency, so neither is introduced.
+
+CA acceptance follows the official emSign G3 removal. Certifi and system CA stores may retain G1/C1/C3; cloudflared uses its official Go mitigation. The pinned nginx 1.30.6 image currently remains on Alpine 3.24.2: wait for an official rebuild instead of adding an APK upgrade layer.
+
 ## Source checks
 
 Prepare backend/.venv and frontend/node_modules using the lock files. Real conversion requires the deployment's LibreOffice, fonts, and Bubblewrap. Never rebuild another checkout's shared environment.
@@ -37,7 +41,7 @@ Node's summary may count files rather than individual cases; run a test.mjs dire
 
 ## Isolated API and browser tests
 
-Runtime tests cover accounts, assessments, infrastructure, materials, sources, and study. Fixtures create disposable PostgreSQL 18 with per-test databases and artifact roots. Do not use a product database.
+Runtime tests cover accounts, assessments, infrastructure, materials, sources, and study. Fixtures create disposable PostgreSQL 18.6 from the same pinned image as Compose, with per-test databases and artifact roots. Do not use a product database.
 
 STUDYDY_TEST_POSTGRES_DSN, if explicitly supplied, must identify a local test control database named studydy_test*. The fixture checks its version and superuser permissions.
 
